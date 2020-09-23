@@ -22,7 +22,7 @@ def init_arg_parser():
     arg_parser.add_argument('--lr_scheduler_gammar', default=0.5, type=float, help='decay rate of learning rate scheduler')
     arg_parser.add_argument('--column_pointer', action='store_true', help='use column pointer')
     arg_parser.add_argument('--loss_epoch_threshold', default=20, type=int, help='loss epoch threshold')
-    arg_parser.add_argument('--sketch_loss_coefficient', default=0.2, type=float, help='sketch loss coefficient')
+    arg_parser.add_argument('--sketch_loss_coefficient', default=1.0, type=float, help='sketch loss coefficient')
     arg_parser.add_argument('--sentence_features', action='store_true', help='use sentence features')
     arg_parser.add_argument('--model_name', choices=['transformer', 'rnn', 'table', 'sketch'], default='rnn',
                             help='model name')

@@ -21,6 +21,7 @@ class Grammar(object):
         self.is_sketch = is_sketch
         self.prod2id = {}
         self.type2id = {}
+        self.template = {}
         self._init_grammar(Sel)
         self._init_grammar(Root)
         self._init_grammar(Sup)
@@ -28,6 +29,7 @@ class Grammar(object):
         self._init_grammar(Order)
         self._init_grammar(N)
         self._init_grammar(Root1)
+        # 没有C，T
 
         if not self.is_sketch:
             self._init_grammar(A)
@@ -44,11 +46,17 @@ class Grammar(object):
         :return:
         """
         production = Cls._init_grammar()
+
+        for i in range(len(production)):
+            self.template[len(self.template)] = Cls(i)
+
         for p in production:
             self.prod2id[p] = self.begin
             self.begin += 1
+            # 给所有的产生式去编号
         self.type2id[Cls] = self.type_id
         self.type_id += 1
+        # 给所有大类编号
 
     def _init_id2prod(self):
         self.id2prod = {}
@@ -83,6 +91,11 @@ class Action(object):
     def add_children(self, child):
         self.children.append(child)
 
+    def __eq__(self, other):
+        if(self.production == other.production):
+            return True
+        return False
+
 
 class Root1(Action):
     def __init__(self, id_c, parent=None):
@@ -112,6 +125,7 @@ class Root1(Action):
 
     def __repr__(self):
         return 'Root1(' + str(self.id_c) + ')'
+    # 这个是不是写错了
 
 
 class Root(Action):
@@ -246,6 +260,7 @@ class A(Action):
 
     def __str__(self):
         return 'A(' + str(self.id_c) + ')'
+        #重载str()函数
 
     def __repr__(self):
         return 'A(' + str(self.grammar_dict[self.id_c].split(' ')[1]) + ')'
@@ -396,4 +411,7 @@ class Order(Action):
 
 
 if __name__ == '__main__':
-    print(list(Root._init_grammar()))
+    # print(list(Root._init_grammar()))
+    x=Filter(0)
+    y=Sel(0)
+    print(x==y)

@@ -1,7 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-# -*- coding: utf-8 -*-
+# coding:utf-8
+
 """
 # @Time    : 2019/5/25
 # @Author  : Jiaqi&Zecheng
@@ -16,6 +17,7 @@ import copy
 import numpy as np
 import os
 import torch
+import random
 from nltk.stem import WordNetLemmatizer
 
 from src.dataset import Example
@@ -26,7 +28,7 @@ wordnet_lemmatizer = WordNetLemmatizer()
 
 
 def load_word_emb(file_name, use_small=False):
-    print ('Loading word embedding from %s'%file_name)
+    print('Loading word embedding from %s' % file_name)
     ret = {}
     with open(file_name) as inf:
         for idx, line in enumerate(inf):
@@ -34,8 +36,9 @@ def load_word_emb(file_name, use_small=False):
                 break
             info = line.strip().split(' ')
             if info[0].lower() not in ret:
-                ret[info[0]] = np.array(list(map(lambda x:float(x), info[1:])))
+                ret[info[0]] = np.array(list(map(lambda x: float(x), info[1:])))
     return ret
+
 
 def lower_keys(x):
     if isinstance(x, list):
@@ -44,6 +47,7 @@ def lower_keys(x):
         return dict((k.lower(), lower_keys(v)) for k, v in x.items())
     else:
         return x
+
 
 def get_table_colNames(tab_ids, tab_cols):
     table_col_dict = {}
@@ -55,23 +59,26 @@ def get_table_colNames(tab_ids, tab_cols):
         result.append(table_col_dict[ci])
     return result
 
+
 def get_col_table_dict(tab_cols, tab_ids, sql):
     table_dict = {}
     for c_id, c_v in enumerate(sql['col_set']):
         for cor_id, cor_val in enumerate(tab_cols):
             if c_v == cor_val:
                 table_dict[tab_ids[cor_id]] = table_dict.get(tab_ids[cor_id], []) + [c_id]
+                # key：表的编号，value：[包含的列的编号（按照col_set的编号）]
 
     col_table_dict = {}
     for key_item, value_item in table_dict.items():
         for value in value_item:
             col_table_dict[value] = col_table_dict.get(value, []) + [key_item]
+            # key：列的编号，value：[包含该列的所有表的编号]
     col_table_dict[0] = [x for x in range(len(table_dict) - 1)]
+    # 加的这个应该是列'*'
     return col_table_dict
 
 
 def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, col_set_iter, sql):
-
     for count_q, t_q in enumerate(question_arg_type):
         t = t_q[0]
         if t == 'NONE':
@@ -99,6 +106,7 @@ def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, 
         else:
             if len(t_q) == 1:
                 for col_probase in t_q:
+                    # 明明长度为1，为啥要循环
                     if col_probase == 'asd':
                         continue
                     try:
@@ -114,8 +122,8 @@ def schema_linking(question_arg, question_arg_type, one_hot_type, col_set_type, 
                         continue
                     col_set_type[sql['col_set'].index(col_probase)][3] += 1
 
-def process(sql, table):
 
+def process(sql, table):
     process_dict = {}
 
     origin_sql = sql['question_toks']
@@ -124,7 +132,7 @@ def process(sql, table):
     sql['pre_sql'] = copy.deepcopy(sql)
 
     tab_cols = [col[1] for col in table['column_names']]
-    tab_ids = [col[0] for col in table['column_names']]
+    tab_ids = [col[0] for col in table['column_names']]  # 列属于哪个表
 
     col_set_iter = [[wordnet_lemmatizer.lemmatize(v).lower() for v in x.split(' ')] for x in sql['col_set']]
     col_iter = [[wordnet_lemmatizer.lemmatize(v).lower() for v in x.split(" ")] for x in tab_cols]
@@ -148,6 +156,7 @@ def process(sql, table):
 
     return process_dict
 
+
 def is_valid(rule_label, col_table_dict, sql):
     try:
         lf.build_tree(copy.copy(rule_label))
@@ -159,18 +168,29 @@ def is_valid(rule_label, col_table_dict, sql):
         if type(rule) == C:
             try:
                 assert rule_label[r_id + 1].id_c in col_table_dict[rule.id_c], print(sql['question'])
+                # 就是看C后面的那个T是不是正确的
             except:
                 flag = True
+                # 不正确
                 print(sql['question'])
     return flag is False
 
 
 def to_batch_seq(sql_data, table_data, idxes, st, ed,
                  is_train=True):
-    """
+    '''
 
-    :return:
-    """
+    Args:
+        sql_data ():
+        table_data ():
+        idxes:
+        st:
+        ed:
+        is_train:
+
+    Returns:
+
+    '''
     examples = []
 
     for i in range(st, ed):
@@ -180,7 +200,9 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
         process_dict = process(sql, table)
 
         for c_id, col_ in enumerate(process_dict['col_set_iter']):
+            # 对每一个列
             for q_id, ori in enumerate(process_dict['q_iter_small']):
+                # 对每一个question里面的word
                 if ori in col_:
                     process_dict['col_set_type'][c_id][0] += 1
 
@@ -191,11 +213,13 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
         table_col_name = get_table_colNames(process_dict['tab_ids'], process_dict['col_iter'])
 
         process_dict['col_set_iter'][0] = ['count', 'number', 'many']
+        # 把'*'对应成这三个词
 
         rule_label = None
         if 'rule_label' in sql:
             try:
                 rule_label = [eval(x) for x in sql['rule_label'].strip().split(' ')]
+                # 把rule字符串转换成真实的实例
             except:
                 continue
             if is_valid(rule_label, col_table_dict=col_table_dict, sql=sql) is False:
@@ -223,41 +247,58 @@ def to_batch_seq(sql_data, table_data, idxes, st, ed,
 
     if is_train:
         examples.sort(key=lambda e: -len(e.src_sent))
+        # 按照nl问题span长度逆序排序
         return examples
     else:
         return examples
 
+
 def epoch_train(model, optimizer, batch_size, sql_data, table_data,
-                args, epoch=0, loss_epoch_threshold=20, sketch_loss_coefficient=0.2):
+                args, temp_epoch, sum_epochs,epoch=0, loss_epoch_threshold=20, sketch_loss_coefficient=0.2):
     model.train()
+    # 设置模型在训练模式
     # shuffe
-    perm=np.random.permutation(len(sql_data))
+    perm = np.random.permutation(len(sql_data))
+    # 随机排列序列
     cum_loss = 0.0
     st = 0
     while st < len(sql_data):
-        ed = st+batch_size if st+batch_size < len(perm) else len(perm)
+        ed = st + batch_size if st + batch_size < len(perm) else len(perm)
         examples = to_batch_seq(sql_data, table_data, perm, st, ed)
         optimizer.zero_grad()
 
-        score = model.forward(examples)
+        if(temp_epoch>=int(sum_epochs*0.8)):
+            p_dynamic = random.uniform(0,1)
+        else:
+            p_dynamic = 0.0
+
+        score = model.forward(examples,p_dynamic)
+        # 此处的examples中的action_seq还没有序号化
         loss_sketch = -score[0]
         loss_lf = -score[1]
-
+        # 既然取了相反数，那么应该就是最小化
         loss_sketch = torch.mean(loss_sketch)
         loss_lf = torch.mean(loss_lf)
+        # torch.mean()不指定维度的时候，就是将所有元素求平均
+        # 这里就是一个batch里面所有句子的平均
 
         if epoch > loss_epoch_threshold:
             loss = loss_lf + sketch_loss_coefficient * loss_sketch
         else:
             loss = loss_lf + loss_sketch
 
+        # print(type(loss))
         loss.backward()
+        # 计算梯度，loss应该是个variable，所以可以计算梯度，反向传播
+        # loss必须是标量，一维的
         if args.clip_grad > 0.:
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_grad)
         optimizer.step()
-        cum_loss += loss.data.cpu().numpy()*(ed - st)
+        # 更新参数
+        cum_loss += loss.data.cpu().numpy() * (ed - st)
         st = ed
     return cum_loss / len(sql_data)
+
 
 def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
     model.eval()
@@ -267,11 +308,13 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
     json_datas = []
     sketch_correct, rule_label_correct, total = 0, 0, 0
     while st < len(sql_data):
-        ed = st+batch_size if st+batch_size < len(perm) else len(perm)
+        ed = st + batch_size if st + batch_size < len(perm) else len(perm)
         examples = to_batch_seq(sql_data, table_data, perm, st, ed,
-                                                        is_train=False)
+                                is_train=False)
         for example in examples:
+
             results_all = model.parse(example, beam_size=beam_size)
+
             results = results_all[0]
             list_preds = []
             try:
@@ -287,7 +330,7 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
 
             simple_json = example.sql_json['pre_sql']
 
-            simple_json['sketch_result'] =  " ".join(str(x) for x in results_all[1])
+            simple_json['sketch_result'] = " ".join(str(x) for x in results_all[1])
             simple_json['model_result'] = pred
 
             truth_sketch = " ".join([str(x) for x in example.sketch])
@@ -301,7 +344,8 @@ def epoch_acc(model, batch_size, sql_data, table_data, beam_size=3):
 
             json_datas.append(simple_json)
         st = ed
-    return json_datas, float(sketch_correct)/float(total), float(rule_label_correct)/float(total)
+    return json_datas, float(sketch_correct) / float(total), float(rule_label_correct) / float(total)
+
 
 def eval_acc(preds, sqls):
     sketch_correct, best_correct = 0, 0
@@ -335,7 +379,7 @@ def load_dataset(dataset_dir, use_small=False):
     TRAIN_PATH = os.path.join(dataset_dir, "train.json")
     DEV_PATH = os.path.join(dataset_dir, "dev.json")
     with open(TABLE_PATH) as inf:
-        print("Loading data from %s"%TABLE_PATH)
+        print("Loading data from %s" % TABLE_PATH)
         table_data = json.load(inf)
 
     train_sql_data, train_table_data = load_data_new(TRAIN_PATH, table_data, use_small=use_small)
@@ -351,6 +395,7 @@ def save_checkpoint(model, checkpoint_name):
 def save_args(args, path):
     with open(path, 'w') as f:
         f.write(json.dumps(vars(args), indent=4))
+
 
 def init_log_checkpoint_path(args):
     save_path = args.save

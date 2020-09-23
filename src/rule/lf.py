@@ -71,10 +71,84 @@ def _build_filter(lf, root_filter):
     return root_filter
 
 
+def _build_single_sketch_filter(sketch, f):
+    # No conjunction
+    if len(f.production.split()) == 3:
+        return
+    else:
+        # Subquery
+        _root = _build_sketch(sketch)
+        f.add_children(_root)
+        _root.set_parent(f)
+
+
+def _build_sketch(sketch):
+    root = sketch.pop(0)
+    assert isinstance(root, define_rule.Root)
+    length = len(root.production.split()) - 1
+
+    while len(root.children) != length:
+        c_instance = sketch.pop(0)
+        if isinstance(c_instance, define_rule.Sel):
+            sel_instance = c_instance
+            root.add_children(sel_instance)
+            sel_instance.set_parent(root)
+
+            # define_rule.N
+            c_instance = sketch.pop(0)
+            c_instance.set_parent(sel_instance)
+            sel_instance.add_children(c_instance)
+            assert isinstance(c_instance, define_rule.N)
+
+        elif isinstance(c_instance, define_rule.Sup) or isinstance(c_instance, define_rule.Order):
+            root.add_children(c_instance)
+            c_instance.set_parent(root)
+
+        elif isinstance(c_instance, define_rule.Filter):
+            _build_sketch_filter(sketch, c_instance)
+            root.add_children(c_instance)
+            c_instance.set_parent(root)
+    return root
+
+
+def _build_sketch_filter(sketch, root_filter):
+    assert isinstance(root_filter, define_rule.Filter)
+    op = root_filter.production.split()[1]
+    if op == 'and' or op == 'or':
+        for i in range(2):
+            child = sketch.pop(0)
+            op = child.production.split()[1]
+            if op == 'and' or op == 'or':
+                _f = _build_sketch_filter(sketch, child)
+                root_filter.add_children(_f)
+                _f.set_parent(root_filter)
+            else:
+                _build_single_sketch_filter(sketch, child)
+                root_filter.add_children(child)
+                child.set_parent(root_filter)
+    else:
+        _build_single_sketch_filter(sketch, root_filter)
+    return root_filter
+
+
+def _build_sketch_filter_2(sketch, root_filter):
+    assert isinstance(root_filter, define_rule.Filter)
+    op = root_filter.production.split()[1]
+    if op == 'and' or op == 'or':
+        for i in range(2):
+            child = sketch.pop(0)
+            new_child = _build_sketch_filter_2(sketch,child)
+            new_child.set_parent(root_filter)
+            root_filter.add_children(new_child)
+    else:
+        _build_single_sketch_filter(sketch, root_filter)
+    return root_filter
+
 def _build(lf):
     root = lf.pop(0)
     assert isinstance(root, define_rule.Root)
     length = len(root.production.split()) - 1
+    # 得到根节点的孩子数量
     while len(root.children) != length:
         c_instance = lf.pop(0)
         if isinstance(c_instance, define_rule.Sel):
@@ -136,6 +210,8 @@ def _build(lf):
     return root
 
 
+
+
 def build_tree(lf):
     root = lf.pop(0)
     assert isinstance(root, define_rule.Root1)
@@ -151,7 +227,26 @@ def build_tree(lf):
         root.add_children(root_1)
         root_1.set_parent(root)
     verify(root)
+    return root
+    # 验证树是否合乎语法
     # eliminate_parent(root)
+
+def build_sketch_tree(sketch):
+    root = sketch.pop(0)
+    assert isinstance(root, define_rule.Root1)
+    if root.id_c == 0 or root.id_c == 1 or root.id_c == 2:
+        root_1 = _build_sketch(sketch)
+        root_2 = _build_sketch(sketch)
+        root.add_children(root_1)
+        root.add_children(root_2)
+        root_1.set_parent(root)
+        root_2.set_parent(root)
+    else:
+        root_1 = _build_sketch(sketch)
+        root.add_children(root_1)
+        root_1.set_parent(root)
+    return root
+
 
 
 def eliminate_parent(node):
@@ -217,12 +312,13 @@ def build_adjacency_matrix(lf, symmetry=False):
 
 
 if __name__ == '__main__':
-    with open(r'..\data\train.json', 'r') as f:
+    with open('train.json', 'r') as f:
         data = json.load(f)
     for d in data:
         rule_label = [eval(x) for x in d['rule_label'].strip().split(' ')]
         print(d['question'])
         print(rule_label)
+        print(type(rule_label[3]))
         build_tree(copy.copy(rule_label))
         adjacency_matrix = build_adjacency_matrix(rule_label, symmetry=True)
         print(adjacency_matrix)

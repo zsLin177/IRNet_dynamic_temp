@@ -77,7 +77,7 @@ def train(args):
                 if args.lr_scheduler:
                     scheduler.step()
                 epoch_begin = time.time()
-                loss = utils.epoch_train(model, optimizer, args.batch_size, sql_data, table_data, args,
+                loss = utils.epoch_train(model, optimizer, args.batch_size, sql_data, table_data, args,epoch,50,
                                    loss_epoch_threshold=args.loss_epoch_threshold,
                                    sketch_loss_coefficient=args.sketch_loss_coefficient)
                 epoch_end = time.time()
@@ -113,5 +113,19 @@ def train(args):
 if __name__ == '__main__':
     arg_parser = arg.init_arg_parser()
     args = arg.init_config(arg_parser)
+
+    # os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+    # args.cuda = True
+    # args.column_pointer = True
+    # args.lr_scheduler = True
+    # args.sentence_features = True
+    # args.glove_embed_path = './data/glove.42B.300d.txt'
+    # args.att_vec_size = 300
+    # args.beam_size = 1
+    # args.hidden_size = 300
+    # args.loss_epoch_threshold = 50
+    # args.save = 'dynamic_debug'
+    # args.seed = 90
+
     print(args)
     train(args)
